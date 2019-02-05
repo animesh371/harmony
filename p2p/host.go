@@ -12,6 +12,8 @@ type Host interface {
 	BindHandlerAndServe(handler StreamHandler)
 	Close() error
 	AddPeer(*Peer) error
+	AddBCPeer(*Peer) error
+	BroadcastToBC([]byte) error
 	GetID() peer.ID
 	GetP2PHost() p2p_host.Host
 }

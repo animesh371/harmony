@@ -27,9 +27,26 @@ const (
 
 // HostV2 is the version 2 p2p host
 type HostV2 struct {
-	h      p2p_host.Host
-	self   p2p.Peer
-	priKey p2p_crypto.PrivKey
+	h       p2p_host.Host
+	self    p2p.Peer
+	priKey  p2p_crypto.PrivKey
+	bcPeers []p2p.Peer
+}
+
+// AddBCPeer adds beacon chain peers into peer store and keep a list of the peer IDs
+func (host *HostV2) AddBCPeer(p *p2p.Peer) error {
+	if p.PeerID != "" && len(p.Addrs) != 0 {
+		host.Peerstore().AddAddrs(p.PeerID, p.Addrs, peerstore.PermanentAddrTTL)
+		host.bcPeers = append(host.bcPeers, *p)
+		return nil
+	}
+	return nil
+}
+
+// BroadcastToBC sends messages to beacon chain via libp2p pubsub subscription
+func (host *HostV2) BroadcastToBC(content []byte) error {
+	// TODO use pubsub
+	return nil
 }
 
 // AddPeer add p2p.Peer into Peerstore
@@ -88,6 +105,8 @@ func New(self *p2p.Peer, priKey p2p_crypto.PrivKey, opts ...p2p_config.Option) *
 		self:   *self,
 		priKey: priKey,
 	}
+
+	h.bcPeers = make([]p2p.Peer, 0)
 
 	return h
 }

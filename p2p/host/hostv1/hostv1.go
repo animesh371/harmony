@@ -19,6 +19,16 @@ type HostV1 struct {
 	quit     chan struct{}
 }
 
+// AddBCPeer do nothing for hostV1
+func (host *HostV1) AddBCPeer(p *p2p.Peer) error {
+	return nil
+}
+
+// BroadcastToBC do nothing for hostV1
+func (host *HostV1) BroadcastToBC(content []byte) error {
+	return nil
+}
+
 // AddPeer do nothing
 func (host *HostV1) AddPeer(p *p2p.Peer) error {
 	return nil
