@@ -43,6 +43,7 @@ import (
 	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/harmony-one/harmony/node/worker"
 	"github.com/harmony-one/harmony/p2p"
+	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
@@ -678,10 +679,14 @@ func (node *Node) setupForBeaconValidator() {
 }
 
 func (node *Node) setupForNewNode() {
-	chanPeer := make(chan *p2p.Peer)
-	// Add network info serivce.
-	node.serviceManager.RegisterService(service_manager.NetworkInfo, networkinfo.NewService(chanPeer))
-	// Add staking service.
+	chanPeer := make(<-chan peerstore.PeerInfo)
+	// Register networkinfo service.
+	node.serviceManager.RegisterService(service_manager.NetworkInfo, networkinfo.NewService(node.host, fmt.Sprintf("%v", node.Consensus.ShardID), chanPeer))
+
+   // Register peer discovery service.
+   node.serviceManager.RegisterService(service_manager.PeerDiscovery, discovery.New(node.host, fmt.Sprintf("%v", node.Consensus.ShardID)))
+
+	// Register staking service.
 	node.serviceManager.RegisterService(service_manager.Staking, staking.NewService(chanPeer))
 }
 

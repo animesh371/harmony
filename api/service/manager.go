@@ -27,8 +27,8 @@ const (
 	Consensus
 	BlockProposal
 	NetworkInfo
-	PeerDiscovery
 	Staking
+	PeerDiscovery
 	Test
 	Done
 )
