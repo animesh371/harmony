@@ -43,7 +43,6 @@ import (
 	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/harmony-one/harmony/node/worker"
 	"github.com/harmony-one/harmony/p2p"
-	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
@@ -657,13 +656,9 @@ func (node *Node) setupForShardLeader() {
 	node.serviceManager.RegisterService(service_manager.BlockProposal, blockproposal.NewService(node.Consensus.ReadySignal, node.WaitForConsensusReady))
 	// Register client support service.
 	node.serviceManager.RegisterService(service_manager.ClientSupport, clientsupport.NewService(node.blockchain.State, node.CallFaucetContract, node.SelfPeer.IP, node.SelfPeer.Port))
-	// Register peer discovery service.
-	node.serviceManager.RegisterService(service_manager.PeerDiscovery, discovery.New(node.host, fmt.Sprintf("%v", node.Consensus.ShardID)))
 }
 
 func (node *Node) setupForShardValidator() {
-	// Register peer discovery service.
-	node.serviceManager.RegisterService(service_manager.PeerDiscovery, discovery.New(node.host, fmt.Sprintf("%v", node.Consensus.ShardID)))
 }
 
 func (node *Node) setupForBeaconLeader() {
@@ -679,12 +674,12 @@ func (node *Node) setupForBeaconValidator() {
 }
 
 func (node *Node) setupForNewNode() {
-	chanPeer := make(<-chan peerstore.PeerInfo)
+	chanPeer := make(chan p2p.Peer)
 	// Register networkinfo service.
 	node.serviceManager.RegisterService(service_manager.NetworkInfo, networkinfo.NewService(node.host, fmt.Sprintf("%v", node.Consensus.ShardID), chanPeer))
 
-   // Register peer discovery service.
-   node.serviceManager.RegisterService(service_manager.PeerDiscovery, discovery.New(node.host, fmt.Sprintf("%v", node.Consensus.ShardID)))
+	// Register peer discovery service.
+	node.serviceManager.RegisterService(service_manager.PeerDiscovery, discovery.New(node.host, fmt.Sprintf("%v", node.Consensus.ShardID), chanPeer))
 
 	// Register staking service.
 	node.serviceManager.RegisterService(service_manager.Staking, staking.NewService(chanPeer))

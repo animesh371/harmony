@@ -203,6 +203,8 @@ func main() {
 		go currentNode.SupportClient()
 	}
 
+	currentNode.Role = node.NewNode
+
 	log.Info("ServiceManagerSetup")
 	currentNode.ServiceManagerSetup()
 

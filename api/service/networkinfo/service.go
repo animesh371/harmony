@@ -19,18 +19,20 @@ import (
 // Service is the role conversion service.
 type Service struct {
 	Host        p2p.Host
-	dht         *libp2pdht.IpfsDHT
 	Rendezvous  string
+	dht         *libp2pdht.IpfsDHT
 	ctx         context.Context
 	cancel      context.CancelFunc
 	stopChan    chan struct{}
 	stoppedChan chan struct{}
-	peerChan    <-chan peerstore.PeerInfo
+	peerChan    chan p2p.Peer
+	peerInfo    <-chan peerstore.PeerInfo
+	discovery   *libp2pdis.RoutingDiscovery
 }
 
 // NewService returns role conversion service.
-func NewService(h p2p.Host, rendezvous string, peerChan <-chan peerstore.PeerInfo) *Service {
-	timeout := 3 * time.Minute
+func NewService(h p2p.Host, rendezvous string, peerChan chan p2p.Peer) *Service {
+	timeout := 30 * time.Minute
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	dht, err := libp2pdht.New(ctx, h.GetP2PHost())
 	if err != nil {
@@ -46,6 +48,7 @@ func NewService(h p2p.Host, rendezvous string, peerChan <-chan peerstore.PeerInf
 		stopChan:    make(chan struct{}),
 		stoppedChan: make(chan struct{}),
 		peerChan:    peerChan,
+		peerInfo:    make(<-chan peerstore.PeerInfo),
 	}
 }
 
@@ -80,40 +83,66 @@ func (s *Service) Init() error {
 		}()
 	}
 	wg.Wait()
+
+	// We use a rendezvous point "shardID" to announce our location.
+	log.Info("Announcing ourselves...")
+	s.discovery = libp2pdis.NewRoutingDiscovery(s.dht)
+	libp2pdis.Advertise(s.ctx, s.discovery, s.Rendezvous)
+	log.Info("Successfully announced!")
+
+	go s.DoService()
+
 	return nil
 }
 
 // Run runs role conversion.
 func (s *Service) Run() {
-	go func() {
-		defer close(s.stoppedChan)
-		for {
-			select {
-			default:
-				utils.GetLogInstance().Info("Running role conversion")
-				// TODO: Write some logic here.
-				s.DoService()
-			case <-s.stopChan:
+	defer close(s.stoppedChan)
+	tick := time.NewTicker(30 * time.Second)
+	defer tick.Stop()
+
+	// Do FindPeers call every 3 minutes
+	for {
+		select {
+		case <-tick.C:
+			log.Info("tick")
+         var err error
+			s.peerInfo, err = s.discovery.FindPeers(s.ctx, s.Rendezvous)
+			if err != nil {
+				log.Error("FindPeers", "error", err)
 				return
 			}
+		case <-s.ctx.Done():
+		case <-s.stopChan:
+			return
 		}
-	}()
+	}
+
 }
 
 // DoService does role conversion.
 func (s *Service) DoService() {
-	// We use a rendezvous point "shardID" to announce our location.
-	log.Info("Announcing ourselves...")
-	routingDiscovery := libp2pdis.NewRoutingDiscovery(s.dht)
-	libp2pdis.Advertise(s.ctx, routingDiscovery, s.Rendezvous)
-	log.Debug("Successfully announced!")
-
-	log.Debug("Searching for other peers...")
-	var err error
-	s.peerChan, err = routingDiscovery.FindPeers(s.ctx, s.Rendezvous)
-	if err != nil {
-		log.Error("FindPeers", "error", err)
+	for {
+		select {
+		case peer, ok := <-s.peerInfo:
+         log.Info("peer", "found", peer)
+			if !ok {
+				log.Debug("no more peer info", "peer", peer.ID)
+				return
+			}
+			if peer.ID != s.Host.GetP2PHost().ID() && len(peer.ID) > 0 {
+				log.Debug("Found Peer", "peer", peer.ID, "addr", peer.Addrs)
+				for i, addr := range peer.Addrs {
+					log.Debug("address", "no", i, "addr", addr)
+				}
+				p := p2p.Peer{IP: "127.0.0.1", Port: "9999", PeerID: peer.ID, Addrs: peer.Addrs}
+				s.peerChan <- p
+			}
+      case <-s.ctx.Done():
+         return
+		}
 	}
+
 }
 
 // StopService stops role conversion service.

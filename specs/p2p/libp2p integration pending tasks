@@ -1,0 +1,22 @@
+libp2p integration pending tasks
+
+bootstrapping
+
+new node starts with a shard id, 0, and indicator whethere it is a beacon chain node.
+bootnode returns a list of peers in the same shard.
+
+
+
+If it is a beacon chain node, new node sends a ping message to beacon chain peers. It connects to the beacon chain nodes.
+
+Broadcast.
+* how a beacon chain node broadcast a message to all the peers in the same shard?
+* how a node differentiate peers in the same shard or different shard?
+
+If it is not a beacon chain node, it broadcast/gossip the staking trasaction to beacon chain nodes? (How)
+
+Cross shard communication is needed here.
+
+And it is placed into a pending list to wait for sharding info.
+
+If it is just a client or light node, it starts with a shardID != 0, however, it needs to send messages to beacon chain nodes. (using topic)
