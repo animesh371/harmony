@@ -2,8 +2,10 @@ package node
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -43,11 +45,33 @@ func (node *Node) StreamHandler(s p2p.Stream) {
 		utils.GetLogInstance().Error("Read p2p data failed", "err", err, "node", node)
 		return
 	}
+
 	node.messageHandler(content)
+}
+
+// ReceiveGroupMessage use libp2p pubsub mechanism to receive broadcast messages
+func (node *Node) ReceiveGroupMessage() {
+	ctx := context.Background()
+	for {
+		if node.groupReceiver == nil {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		utils.GetLogInstance().Info("[ReceiveGroupMessage] is ready to receive message")
+		msg, sender, err := node.groupReceiver.Receive(ctx)
+		if sender != node.host.GetID() {
+			utils.GetLogInstance().Info("[PUBSUB]", "msg size", len(msg), "sender", sender)
+			if err == nil {
+				// skip the first 5 bytes, 1 byte is p2p type, 4 bytes are message size
+				node.messageHandler(msg[5:])
+			}
+		}
+	}
 }
 
 // messageHandler parses the message and dispatch the actions
 func (node *Node) messageHandler(content []byte) {
+	utils.GetLogInstance().Info("[msgHandler]", "msg size", len(content), "msg", content)
 	node.MaybeBroadcastAsValidator(content)
 
 	consensusObj := node.Consensus
@@ -237,7 +261,7 @@ func (node *Node) pingMessageHandler(msgPayload []byte) int {
 		utils.GetLogInstance().Error("Can't get Ping Message")
 		return -1
 	}
-	//	utils.GetLogInstance().Info("Ping", "Msg", ping)
+	utils.GetLogInstance().Debug("Ping", "Msg", ping)
 
 	peer := new(p2p.Peer)
 	peer.IP = ping.Node.IP

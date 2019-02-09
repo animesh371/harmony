@@ -167,6 +167,9 @@ type Node struct {
 	TestBankKeys      []*ecdsa.PrivateKey
 	ContractKeys      []*ecdsa.PrivateKey
 	ContractAddresses []common.Address
+
+	// Group Message Receiver
+	groupReceiver p2p.GroupReceiver
 }
 
 // Blockchain returns the blockchain from node
@@ -273,6 +276,9 @@ func New(host p2p.Host, consensus *bft.Consensus, db ethdb.Database) *Node {
 
 	node.OfflinePeers = make(chan p2p.Peer)
 	go node.RemovePeersHandler()
+
+	// start the goroutine to receive group message
+	go node.ReceiveGroupMessage()
 
 	return &node
 }
@@ -571,6 +577,7 @@ func (node *Node) RemovePeersHandler() {
 }
 
 func (node *Node) setupForShardLeader() {
+	utils.GetLogInstance().Info("setup for shard leader")
 	// Register explorer service.
 	node.serviceManager.RegisterService(service_manager.SupportExplorer, explorer.New(&node.SelfPeer))
 	// Register consensus service.
@@ -582,10 +589,19 @@ func (node *Node) setupForShardLeader() {
 }
 
 func (node *Node) setupForShardValidator() {
+	utils.GetLogInstance().Info("setup for shard validator")
 }
 
 func (node *Node) setupForBeaconLeader() {
+	utils.GetLogInstance().Info("setup for beacon leader")
 	chanPeer := make(chan p2p.Peer)
+
+	var err error
+	node.groupReceiver, err = node.host.GroupReceiver(p2p.GroupIDBeacon)
+	if err != nil {
+		utils.GetLogInstance().Error("create group receiver error", "msg", err)
+		return
+	}
 
 	// Register peer discovery service. "0" is the beacon shard ID. No need to do staking for beacon chain node.
 	node.serviceManager.RegisterService(service_manager.PeerDiscovery, discovery.New(node.host, "0", chanPeer, nil))
@@ -601,7 +617,15 @@ func (node *Node) setupForBeaconLeader() {
 }
 
 func (node *Node) setupForBeaconValidator() {
+	utils.GetLogInstance().Info("setup for beacon validator")
 	chanPeer := make(chan p2p.Peer)
+
+	var err error
+	node.groupReceiver, err = node.host.GroupReceiver(p2p.GroupIDBeacon)
+	if err != nil {
+		utils.GetLogInstance().Error("create group receiver error", "msg", err)
+		return
+	}
 
 	// Register peer discovery service. "0" is the beacon shard ID. No need to do staking for beacon chain node.
 	node.serviceManager.RegisterService(service_manager.PeerDiscovery, discovery.New(node.host, "0", chanPeer, nil))
@@ -610,8 +634,17 @@ func (node *Node) setupForBeaconValidator() {
 }
 
 func (node *Node) setupForNewNode() {
+	utils.GetLogInstance().Info("setup for new node")
+
 	chanPeer := make(chan p2p.Peer)
 	stakingPeer := make(chan p2p.Peer)
+
+	var err error
+	node.groupReceiver, err = node.host.GroupReceiver(p2p.GroupIDBeacon)
+	if err != nil {
+		utils.GetLogInstance().Error("create group receiver error", "msg", err)
+		return
+	}
 
 	// Register staking service.
 	node.serviceManager.RegisterService(service_manager.Staking, staking.New(stakingPeer))
